@@ -1,0 +1,10 @@
+.env
+bin/
+*.p8
+*.pem
+
+.env.*
+!.env.example
+.local/
+uploads/
+/server
