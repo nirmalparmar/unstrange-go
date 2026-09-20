@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/unstrange/backend/internal/config"
 	"github.com/unstrange/backend/internal/user"
 	"github.com/unstrange/backend/pkg/response"
 )
@@ -37,21 +38,31 @@ func SendOTPHandler(c *gin.Context) {
 		if errors.Is(err, ErrOTPCooldown) {
 			c.Header("Retry-After", "30")
 			response.Error(c, http.StatusTooManyRequests, "Wait 30 seconds before requesting another code")
+		} else if errors.Is(err, ErrMockPhoneNotAllowed) {
+			response.Error(c, http.StatusForbidden, err.Error())
 		} else {
 			response.Error(c, http.StatusServiceUnavailable, "Unable to send a code. Please try again later.")
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "OTP sent",
-		"req_id":  reqID,
-	})
+	result := gin.H{
+		"message":             "OTP sent",
+		"req_id":              reqID,
+		"delivery":            "sms",
+		"retry_after_seconds": 30,
+	}
+	if config.C.OTPMode == "mock" {
+		result["message"] = "Test code ready. No SMS was sent."
+		result["delivery"] = "mock"
+		result["mock_code"] = config.C.MockOTP
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 type VerifyOTPRequest struct {
 	Phone string `json:"phone" binding:"required,max=20"`
-	OTP   string `json:"otp" binding:"required,min=4,max=8,numeric"`
+	OTP   string `json:"otp" binding:"required,len=6,numeric"`
 	ReqID string `json:"req_id" binding:"required,max=200"`
 }
 

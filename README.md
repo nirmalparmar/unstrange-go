@@ -73,9 +73,9 @@ Set the following values:
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Credentials with `s3:PutObject` on the media bucket prefixes |
 | `AWS_REGION`, `S3_BUCKET_NAME` | Region and bucket for public photos/videos |
 
-Keep `ENV=production` and `TEST_OTP` empty. The env file uses plain `KEY=value` entries; do not add `export`. Preserve the generated JWT and private-media keys across deployments. Store a secure backup of `PRIVATE_MEDIA_KEY` separately from Neon: replacing it makes existing encrypted chat/identity images unreadable.
+Keep `ENV=production` and `TEST_OTP` empty. Until SMS is configured, set `OTP_MODE=mock`, `MOCK_OTP=123456`, and `MOCK_OTP_PHONES` to a comma-separated list of dedicated test phone numbers with country codes (for example `+919999999999`). Production mock mode requires this list and rejects other numbers. The app displays the code with a **Use test code** action. Switch `OTP_MODE` to `msg91` when real SMS is ready. The env file uses plain `KEY=value` entries; do not add `export`. Preserve the generated JWT and private-media keys across deployments. Store a secure backup of `PRIVATE_MEDIA_KEY` separately from Neon: replacing it makes existing encrypted chat/identity images unreadable.
 
-The media service returns `https://BUCKET.s3.REGION.amazonaws.com/KEY`. Configure public read-only access to the social media prefixes `uploads/`, `posts/`, `stories/`, `reels/`, `avatars/`, `activities/`, and `events/`; public write and bucket listing are not needed. Private chat and identity images stay in encrypted, authenticated database storage. Without MSG91, real sign-in fails; without S3, public uploads fail.
+The media service returns `https://BUCKET.s3.REGION.amazonaws.com/KEY`. Configure public read-only access to the social media prefixes `uploads/`, `posts/`, `stories/`, `reels/`, `avatars/`, `activities/`, and `events/`; public write and bucket listing are not needed. Private chat and identity images stay in encrypted, authenticated database storage. With `OTP_MODE=msg91`, real sign-in requires MSG91; without S3, public uploads fail.
 
 Optional AI, moderation, weather and reviewer configuration is in `deploy/.env.example`. `ADMIN_USER_IDS` accepts existing user UUIDs.
 
@@ -90,7 +90,7 @@ curl --fail http://127.0.0.1:8080/health
 
 Expected result: `{"status":"ok"}`. Startup applies the schema through the direct Neon endpoint, then uses the pooled endpoint for API traffic. No sample records are inserted. The service runs as an unprivileged user, restarts after failure, and starts automatically on boot. Its filesystem is read-only except for its private temporary directory.
 
-`/health` checks the API process, not SMS or storage integrations. Complete a real sign-in and upload before inviting users.
+`/health` checks the API process, not SMS or storage integrations. Complete an SMS sign-in with `OTP_MODE=msg91` and an upload before inviting public users. Mock mode is for dedicated preview accounts and does not prove phone ownership.
 
 ### 4. Enable HTTPS
 

@@ -6,7 +6,7 @@ export SKIP_DOTENV=true ENV=development PORT=8080 BIND_ADDRESS=127.0.0.1
 export DATABASE_URL_POOLED='' TRUSTED_PROXIES=''
 export DATABASE_URL='postgres://unstrange@127.0.0.1:55439/unstrange_dev?sslmode=disable'
 export JWT_SECRET='local-development-only-replace-before-deploying'
-export TEST_OTP=123456 APP_URL=http://localhost:8080 FRONTEND_URL=http://localhost:3000
+export OTP_MODE=mock MOCK_OTP=123456 MOCK_OTP_PHONES='' TEST_OTP='' APP_URL=http://localhost:8080 FRONTEND_URL=http://localhost:3000
 export OPENAI_API_KEY='' AWS_ACCESS_KEY_ID='' AWS_SECRET_ACCESS_KEY='' MSG91_AUTH_TOKEN='' MSG91_WIDGET_ID=''
 export REQUIRE_IDENTITY_VERIFICATION=false REQUIRE_MODERATION=false
 mkdir -p .local

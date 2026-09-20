@@ -2,8 +2,10 @@ package config
 
 import (
 	"encoding/base64"
+	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -30,8 +32,11 @@ type Config struct {
 	// MSG91 OTP
 	MSG91AuthToken string
 	MSG91WidgetID  string
-	// Static OTP for dev/test (e.g. "1234"). Empty = use MSG91.
-	TestOTP string
+	// TEST_OTP is retained for older local development scripts.
+	TestOTP       string
+	OTPMode       string
+	MockOTP       string
+	MockOTPPhones []string
 
 	AWSAccessKeyID     string
 	AWSSecretAccessKey string
@@ -69,6 +74,8 @@ func Load() {
 		MSG91AuthToken: getEnv("MSG91_AUTH_TOKEN", ""),
 		MSG91WidgetID:  getEnv("MSG91_WIDGET_ID", ""),
 		TestOTP:        getEnv("TEST_OTP", ""),
+		OTPMode:        getEnv("OTP_MODE", ""),
+		MockOTP:        getEnv("MOCK_OTP", ""),
 
 		AWSAccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
 		AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
@@ -77,6 +84,9 @@ func Load() {
 
 		AppURL:      getEnv("APP_URL", "http://localhost:8080"),
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:3000"),
+	}
+	if err := C.configureOTP(os.Getenv("MOCK_OTP_PHONES")); err != nil {
+		log.Fatal(err)
 	}
 	for _, proxy := range strings.Split(os.Getenv("TRUSTED_PROXIES"), ",") {
 		if proxy = strings.TrimSpace(proxy); proxy != "" {
@@ -98,6 +108,60 @@ func Load() {
 	if C.Env == "production" && len(C.JWTSecret) < 32 {
 		log.Fatal("JWT_SECRET must be at least 32 characters")
 	}
+}
+
+// Mock delivery is explicit on deployed servers and limited to test accounts.
+func (c *Config) configureOTP(phones string) error {
+	if c.OTPMode == "" {
+		c.OTPMode = "msg91"
+		if c.Env != "production" && (c.TestOTP != "" || (c.MSG91AuthToken == "" && c.MSG91WidgetID == "")) {
+			c.OTPMode = "mock"
+		}
+	}
+	if c.OTPMode != "mock" && c.OTPMode != "msg91" {
+		return fmt.Errorf("OTP_MODE must be mock or msg91")
+	}
+	if c.OTPMode != "mock" {
+		return nil
+	}
+	if c.MockOTP == "" {
+		c.MockOTP = c.TestOTP
+		if c.MockOTP == "" {
+			c.MockOTP = "123456"
+		}
+	}
+	if !regexp.MustCompile(`^[0-9]{6}$`).MatchString(c.MockOTP) {
+		return fmt.Errorf("MOCK_OTP must be exactly six digits")
+	}
+	for _, phone := range strings.Split(phones, ",") {
+		phone = strings.TrimPrefix(strings.TrimSpace(phone), "+")
+		if phone == "" {
+			continue
+		}
+		if !regexp.MustCompile(`^[1-9][0-9]{6,14}$`).MatchString(phone) {
+			return fmt.Errorf("MOCK_OTP_PHONES must contain international numbers separated by commas")
+		}
+		c.MockOTPPhones = append(c.MockOTPPhones, phone)
+	}
+	if c.Env == "production" && len(c.MockOTPPhones) == 0 {
+		return fmt.Errorf("MOCK_OTP_PHONES is required for mock delivery in production; use dedicated test accounts")
+	}
+	return nil
+}
+
+func (c Config) AllowsMockPhone(phone string) bool {
+	if c.OTPMode != "mock" {
+		return false
+	}
+	if len(c.MockOTPPhones) == 0 {
+		return c.Env != "production"
+	}
+	for _, allowed := range c.MockOTPPhones {
+		if allowed == phone {
+			return true
+		}
+	}
+	return false
 }
 
 func getEnv(key, fallback string) string {

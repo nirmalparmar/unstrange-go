@@ -15,6 +15,7 @@ import (
 )
 
 var ErrOTPCooldown = errors.New("OTP requested too recently")
+var ErrMockPhoneNotAllowed = errors.New("This preview only supports configured test phone numbers")
 
 var otpClient = &http.Client{Timeout: 12 * time.Second}
 
@@ -56,6 +57,9 @@ func msg91(ctx context.Context, action string, payload any) (otpResult, error) {
 	return result, nil
 }
 func SendOTP(ctx context.Context, phone string) (string, error) {
+	if config.C.OTPMode == "mock" && !config.C.AllowsMockPhone(phone) {
+		return "", ErrMockPhoneNotAllowed
+	}
 	tx, err := db.Pool.Begin(ctx)
 	if err != nil {
 		return "", err
@@ -74,8 +78,8 @@ func SendOTP(ctx context.Context, phone string) (string, error) {
 	}
 	reqID := uuid.NewString()
 	otp := ""
-	if config.C.TestOTP != "" {
-		otp = config.C.TestOTP
+	if config.C.OTPMode == "mock" {
+		otp = config.C.MockOTP
 	} else {
 		result, e := msg91(ctx, "sendOtp", map[string]string{"identifier": phone, "widgetId": config.C.MSG91WidgetID})
 		if e != nil {
@@ -96,6 +100,9 @@ func SendOTP(ctx context.Context, phone string) (string, error) {
 	return reqID, err
 }
 func VerifyOTP(ctx context.Context, phone, otp, reqID string) error {
+	if config.C.OTPMode == "mock" && !config.C.AllowsMockPhone(phone) {
+		return ErrMockPhoneNotAllowed
+	}
 	tx, err := db.Pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -118,11 +125,14 @@ func VerifyOTP(ctx context.Context, phone, otp, reqID string) error {
 		return err
 	}
 	var verification error
-	if config.C.TestOTP != "" {
-		if stored != otp {
+	if config.C.OTPMode == "mock" {
+		if stored == "" || stored != otp {
 			verification = errors.New("Incorrect code")
 		}
 	} else {
+		if stored != "" {
+			return errors.New("Code delivery mode changed. Request another code.")
+		}
 		_, verification = msg91(ctx, "verifyOtp", map[string]string{"reqId": reqID, "otp": otp})
 	}
 	if verification != nil {
