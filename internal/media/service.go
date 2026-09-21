@@ -46,7 +46,7 @@ func Init() {
 
 // Upload stores a file in S3 under the given folder and returns the public URL.
 // folder examples: "posts", "stories", "reels", "avatars"
-func Upload(ctx context.Context, folder string, body io.Reader, contentType string) (string, error) {
+func Upload(ctx context.Context, folder string, body io.ReadSeeker, contentType string) (string, error) {
 	extension, allowed := mediaExtensions[contentType]
 	if !allowed {
 		return "", fmt.Errorf("unsupported content type")
