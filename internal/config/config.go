@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -42,6 +43,7 @@ type Config struct {
 	AWSSecretAccessKey string
 	AWSRegion          string
 	S3BucketName       string
+	AssetBaseURL       string
 
 	AppURL      string
 	FrontendURL string
@@ -81,9 +83,17 @@ func Load() {
 		AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
 		AWSRegion:          getEnv("AWS_REGION", "us-east-1"),
 		S3BucketName:       getEnv("S3_BUCKET_NAME", "unstrange-assets"),
+		AssetBaseURL:       strings.TrimRight(strings.TrimSpace(os.Getenv("ASSET_BASE_URL")), "/"),
 
 		AppURL:      getEnv("APP_URL", "http://localhost:8080"),
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:3000"),
+	}
+	if C.AssetBaseURL != "" {
+		assetURL, err := url.Parse(C.AssetBaseURL)
+		if err != nil || assetURL.Host == "" || assetURL.User != nil || assetURL.RawQuery != "" || assetURL.ForceQuery || assetURL.Fragment != "" ||
+			(assetURL.Scheme != "http" && assetURL.Scheme != "https") || (C.Env == "production" && assetURL.Scheme != "https") {
+			log.Fatal("ASSET_BASE_URL must be an absolute HTTP(S) URL without credentials, query or fragment; production requires HTTPS")
+		}
 	}
 	if err := C.configureOTP(os.Getenv("MOCK_OTP_PHONES")); err != nil {
 		log.Fatal(err)

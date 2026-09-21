@@ -93,9 +93,12 @@ func Upload(ctx context.Context, folder string, body io.ReadSeeker, contentType 
 		return "", fmt.Errorf("s3 upload: %w", err)
 	}
 
-	url := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s",
-		config.C.S3BucketName, config.C.AWSRegion, key)
-	return url, nil
+	baseURL := config.C.AssetBaseURL
+	if baseURL == "" {
+		baseURL = fmt.Sprintf("https://%s.s3.%s.amazonaws.com",
+			config.C.S3BucketName, config.C.AWSRegion)
+	}
+	return strings.TrimRight(baseURL, "/") + "/" + key, nil
 }
 
 // AllowedImageTypes for validation.
